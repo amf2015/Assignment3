@@ -1,4 +1,4 @@
-package edu.unh.cs753854.team1;
+package edu.unh.cs753853.team1;
 import java.io.*;
 import java.util.*;
 
@@ -7,7 +7,6 @@ import edu.unh.cs.treccartool.Data;
 import edu.unh.cs.treccartool.read_data.DeserializeData;
 import edu.unh.cs.treccartool.read_data.DeserializeData.RuntimeCborException;
 
-import edu.unh.cs753853.team1.NDCGCalculation_5;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
