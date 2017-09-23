@@ -34,14 +34,12 @@ public class QueryParagraphs {
 	private QueryParser qp = null;
 	private boolean customScore = false;
 
-
 	// directory  structure..
-	static final String INDEX_DIRECTORY = "index";
-	static final String Cbor_FILE ="test200.cbor/train.test200.cbor.paragraphs";
-	static final String Cbor_OUTLINE ="test200.cbor/train.test200.cbor.outlines";
-	static final String Cbor_QRELS = "test200.cbor/train.test200.cbor.article.qrels";
-	static final String OUTPUT_DIR = "output";
-	static Map<String, Set<String>> rel_docs = new HashMap<String, Set<String> >();
+	static final private String INDEX_DIRECTORY = "index";
+	static final private String Cbor_FILE ="test200.cbor/train.test200.cbor.paragraphs";
+	static final private String Cbor_OUTLINE ="test200.cbor/train.test200.cbor.outlines";
+	static final private String Cbor_QRELS = "test200.cbor/train.test200.cbor.article.qrels";
+	static final private String OUTPUT_DIR = "output";
 
 
 	public void indexAllParagraphs() throws CborException, IOException {
