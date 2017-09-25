@@ -35,10 +35,10 @@ public class QueryParagraphs {
 	private boolean customScore = false;
 
 	// directory  structure..
-	static final private String INDEX_DIRECTORY = "index";
-	static final private String Cbor_FILE ="test200.cbor/train.test200.cbor.paragraphs";
-	static final private String Cbor_OUTLINE ="test200.cbor/train.test200.cbor.outlines";
-	static final private String OUTPUT_DIR = "output";
+	static final public String INDEX_DIRECTORY = "index";
+	static final public String Cbor_FILE ="test200.cbor/train.test200.cbor.paragraphs";
+	static final public String Cbor_OUTLINE ="test200.cbor/train.test200.cbor.outlines";
+	static final public String OUTPUT_DIR = "output";
 
 
 	private void indexAllParagraphs() throws CborException, IOException {
@@ -214,6 +214,7 @@ public class QueryParagraphs {
 			*/
 			ArrayList<Data.Page> pagelist = q.getPageListFromPath(QueryParagraphs.Cbor_OUTLINE);
 
+			/*
 			File f = new File(OUTPUT_DIR + "/result-lucene.run");
 			if(f.exists())
 			{
@@ -236,6 +237,11 @@ public class QueryParagraphs {
 
 				q.rankParas(page, 100, "result-custom.run");
 			}
+			*/
+
+			TFIDF_lnc_ltn tfidf = new TFIDF_lnc_ltn(pagelist, 100);
+
+			tfidf.dumpScoresTo(OUTPUT_DIR + "/not-yet-implemented");
 
 
 		} catch (CborException | IOException | ParseException e) {
