@@ -19,7 +19,7 @@ import java.util.*;
 
 class ResultComparator implements Comparator<DocumentResults>
 {
-    public int compare(DocumentResults d1, DocumentResults d2)
+    public int compare(DocumentResults d2, DocumentResults d1)
     {
         if(d1.getScore() < d2.getScore())
             return -1;
@@ -93,9 +93,6 @@ public class TFIDF_lnc_ltn {
             Query q = parser.parse(page.getPageName());                 // The full query containing all terms
             String qid = page.getPageId();
 
-
-
-
             for(String term: page.getPageName().split(" "))
             {   // For every word in page name...
                 // Take word as query term for parabody
@@ -136,6 +133,11 @@ public class TFIDF_lnc_ltn {
                     }
                     float prevScore = dResults.getScore();
                     dResults.score((float)(prevScore+score));
+                    dResults.queryId(qid);
+                    dResults.paragraphId(doc.getField("paraid").stringValue());
+                    dResults.teamName("team1");
+                    dResults.methodName("tf.idf_lnc_ltn");
+                    docMap.put(doc, dResults);
 
                     // Store score for later use
                     scores.put(doc, (float)(prevScore+score));
@@ -186,7 +188,8 @@ public class TFIDF_lnc_ltn {
             ArrayList<DocumentResults> list = results.getValue();
             for(int i = 0; i < list.size(); i++)
             {
-                System.out.println(list.get(i).getRunfileString());
+                DocumentResults dr = list.get(i);
+                System.out.println(dr.getRunfileString());
             }
         }
     }
