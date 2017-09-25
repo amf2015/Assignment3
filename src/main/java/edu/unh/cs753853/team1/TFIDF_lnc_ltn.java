@@ -15,9 +15,19 @@ import org.apache.lucene.search.similarities.SimilarityBase;
 import org.apache.lucene.store.FSDirectory;
 
 import java.io.*;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+
+class ResultComparator implements Comparator<DocumentResults>
+{
+    public int compare(DocumentResults d1, DocumentResults d2)
+    {
+        if(d1.getScore() < d2.getScore())
+            return -1;
+        if(d1.getScore() == d2.getScore())
+            return 0;
+        return 1;
+    }
+}
 
 public class TFIDF_lnc_ltn {
     // Lucene tools
@@ -31,7 +41,8 @@ public class TFIDF_lnc_ltn {
     private int numDocs;
 
     // Map of queries to map of Documents to scores for that query
-    HashMap<Query, HashMap<Document, Float>> queryScores;
+    private HashMap<Query, ArrayList<DocumentResults>> queryResults;
+
 
     TFIDF_lnc_ltn(ArrayList<Data.Page> pl, int n) throws ParseException, IOException
     {
@@ -68,15 +79,22 @@ public class TFIDF_lnc_ltn {
      */
     public void dumpScoresTo(String runfile) throws IOException, ParseException
     {
-        queryScores = new HashMap<>(); // Maps query to map of Documents with TF-IDF scores
+        queryResults = new HashMap<>(); // Maps query to map of Documents with TF-IDF score
 
         for(Data.Page page:pageList)
         {   // For every page in .cbor.outline
             // We need...
             HashMap<Document, Float> scores = new HashMap<>();          // Mapping of each Document to its score
+            HashMap<Document, DocumentResults> docMap = new HashMap<>();
+            PriorityQueue<DocumentResults> docQueue = new PriorityQueue<>(new ResultComparator());
+            ArrayList<DocumentResults> docResults = new ArrayList<>();
             HashMap<TermQuery, Float> queryweights = new HashMap<>();   // Mapping of each term to its query tf
             ArrayList<TermQuery> terms = new ArrayList<>();             // List of every term in the query
             Query q = parser.parse(page.getPageName());                 // The full query containing all terms
+            String qid = page.getPageId();
+
+
+
 
             for(String term: page.getPageName().split(" "))
             {   // For every word in page name...
@@ -111,10 +129,29 @@ public class TFIDF_lnc_ltn {
                     Document doc = searcher.doc(tpd.scoreDocs[i].doc);                  // Get the document
                     double score = tpd.scoreDocs[i].score * queryweights.get(query);    // Calculate TF-IDF for document
 
+                    DocumentResults dResults = docMap.get(doc);
+                    if(dResults == null)
+                    {
+                        dResults = new DocumentResults(doc);
+                    }
+                    float prevScore = dResults.getScore();
+                    dResults.score((float)(prevScore+score));
+
                     // Store score for later use
-                    scores.put(doc, (float)(scores.getOrDefault(doc, 0.0f)+score));
+                    scores.put(doc, (float)(prevScore+score));
                 }
             }
+
+            // Get cosine Length
+            float cosineLength = 0.0f;
+            for(Map.Entry<Document, Float> entry: scores.entrySet())
+            {
+                Document doc = entry.getKey();
+                Float score = entry.getValue();
+
+                cosineLength = (float)(cosineLength + Math.pow(score, 2));
+            }
+            cosineLength = (float)(Math.sqrt(cosineLength));
 
             // Normalization of scores
             for(Map.Entry<Document, Float> entry: scores.entrySet())
@@ -124,28 +161,36 @@ public class TFIDF_lnc_ltn {
 
                 // Normalize the score
                 scores.put(doc, score/scores.size());
+                DocumentResults dResults = docMap.get(doc);
+                dResults.score(dResults.getScore()/cosineLength);
+
+                docQueue.add(dResults);
+            }
+
+            int rankCount = 0;
+            DocumentResults current;
+            while((current = docQueue.poll()) != null)
+            {
+                current.rank(rankCount);
+                docResults.add(current);
+                rankCount++;
             }
 
             // Map our Documents and scores to the corresponding query
-            queryScores.put(q, scores);
+            queryResults.put(q, docResults);
         }
 
 
-        // Output for testing, should be removed eventually
-        for(Map.Entry<Query, HashMap<Document, Float>> queryScore: queryScores.entrySet())
+        for(Map.Entry<Query, ArrayList<DocumentResults>> results: queryResults.entrySet())
         {
-            String query = queryScore.getKey().toString();
-            HashMap<Document, Float> scores = queryScore.getValue();
-            for(Map.Entry<Document, Float> docScore: scores.entrySet())
+            ArrayList<DocumentResults> list = results.getValue();
+            for(int i = 0; i < list.size(); i++)
             {
-                Document d = docScore.getKey();
-                Float f = docScore.getValue();
-                System.out.println("Query\t" + query);
-                System.out.println("Paraid\t" + d.getField("paraid").stringValue());
-                System.out.println("Score\t" + f);
+                System.out.println(list.get(i).getRunfileString());
             }
         }
-        // Remove to here before submitting
     }
+
+
 
 }
