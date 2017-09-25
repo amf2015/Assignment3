@@ -241,7 +241,7 @@ public class QueryParagraphs {
 
 			TFIDF_lnc_ltn tfidf = new TFIDF_lnc_ltn(pagelist, 100);
 
-			tfidf.dumpScoresTo(OUTPUT_DIR + "/not-yet-implemented");
+			tfidf.dumpScoresTo(OUTPUT_DIR + "/tf-idf_lnc_ltn.run");
 
 
 		} catch (CborException | IOException | ParseException e) {

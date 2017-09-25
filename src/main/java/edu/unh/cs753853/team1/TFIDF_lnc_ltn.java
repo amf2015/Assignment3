@@ -183,15 +183,18 @@ public class TFIDF_lnc_ltn {
         }
 
 
+        FileWriter runfileWriter = new FileWriter(new File(runfile));
         for(Map.Entry<Query, ArrayList<DocumentResults>> results: queryResults.entrySet())
         {
             ArrayList<DocumentResults> list = results.getValue();
             for(int i = 0; i < list.size(); i++)
             {
                 DocumentResults dr = list.get(i);
-                System.out.println(dr.getRunfileString());
+                runfileWriter.write(dr.getRunfileString());
             }
         }
+
+
     }
 
 

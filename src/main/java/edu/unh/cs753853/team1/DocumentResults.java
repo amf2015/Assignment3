@@ -131,7 +131,7 @@ public class DocumentResults {
 
     public String getRunfileString()
     {
-        return (queryId + " " + q0 + " " + paragraphId + " " + rank + " " + score + " " + teamName + "-" + methodName);
+        return (queryId + " " + q0 + " " + paragraphId + " " + rank + " " + score + " " + teamName + "-" + methodName + "\n");
     }
 
 }
