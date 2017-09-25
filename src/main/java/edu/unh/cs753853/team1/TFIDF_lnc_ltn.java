@@ -24,11 +24,8 @@ public class TFIDF_lnc_ltn {
     private IndexSearcher searcher;
     private QueryParser parser;
 
-    // Paths to important file locations
-    final private String INDEX_DIRECTORY = "index";
-
     // List of pages to query
-    private ArrayList<Data.Page> pagelist;
+    private ArrayList<Data.Page> pageList;
 
     // Number of documents to return
     private int numDocs;
@@ -38,10 +35,18 @@ public class TFIDF_lnc_ltn {
 
     TFIDF_lnc_ltn(ArrayList<Data.Page> pl, int n) throws ParseException, IOException
     {
-        numDocs = n;
-        pagelist = pl;
+
+        numDocs = n; // Get the (max) number of documents to return
+        pageList = pl; // Each page title will be used as a query
+
+        // Parse the parabody field using StandardAnalyzer
         parser = new QueryParser("parabody", new StandardAnalyzer());
+
+        // Create an index searcher
+        String INDEX_DIRECTORY = "index";
         searcher = new IndexSearcher(DirectoryReader.open(FSDirectory.open((new File(INDEX_DIRECTORY).toPath()))));
+
+        // Set our own similarity class which computes tf[t,d]
         SimilarityBase lnc_ltn = new SimilarityBase() {
             protected float score(BasicStats stats, float freq, float docLen) {
                 return (float)(1 + Math.log10(freq));
@@ -55,56 +60,78 @@ public class TFIDF_lnc_ltn {
         searcher.setSimilarity(lnc_ltn);
     }
 
+    /**
+     *
+     * @param runfile   The name of the runfile to output to
+     * @throws IOException
+     * @throws ParseException
+     */
     public void dumpScoresTo(String runfile) throws IOException, ParseException
     {
-        queryScores = new HashMap<>();
+        queryScores = new HashMap<>(); // Maps query to map of Documents with TF-IDF scores
 
-        HashMap<Query, HashMap<Document, String>> runFileInfo = new HashMap<>();
-        for(Data.Page page:pagelist)
-        {
-            HashMap<Document, Float> scores = new HashMap<>();
-            HashMap<TermQuery, Float> queryweights = new HashMap<>();
-            ArrayList<TermQuery> queries = new ArrayList<>();
-            Query q = parser.parse(page.getPageName());
+        for(Data.Page page:pageList)
+        {   // For every page in .cbor.outline
+            // We need...
+            HashMap<Document, Float> scores = new HashMap<>();          // Mapping of each Document to its score
+            HashMap<TermQuery, Float> queryweights = new HashMap<>();   // Mapping of each term to its query tf
+            ArrayList<TermQuery> terms = new ArrayList<>();             // List of every term in the query
+            Query q = parser.parse(page.getPageName());                 // The full query containing all terms
+
             for(String term: page.getPageName().split(" "))
-            {
+            {   // For every word in page name...
+                // Take word as query term for parabody
                 TermQuery tq = new TermQuery(new Term("parabody", term));
-                queries.add(tq);
+                terms.add(tq);
+
+                // Add one to our term weighting every time it appears in the query
                 queryweights.put(tq, queryweights.getOrDefault(tq, 0.0f)+1.0f);
             }
-            for(TermQuery query: queries)
-            {
+            for(TermQuery query: terms)
+            {   // For every Term
+
+                // Get our Index Reader for helpful statistics
                 IndexReader reader = searcher.getIndexReader();
-                float DF = 0.0f;
-                if(reader.docFreq(query.getTerm()) == 0)
-                {
-                   DF = 1;
-                }
-                else
-                {
-                    DF = reader.docFreq(query.getTerm());
-                }
-                float qTF = (float)(1 + Math.log10(queryweights.get(query)));
-                float qIDF = (float)(Math.log10(reader.numDocs()/DF));
-                float qWeight = qTF * qIDF;
+
+                // If document frequency is zero, set DF to 1; else, set DF to document frequency
+                float DF = (reader.docFreq(query.getTerm()) == 0) ? 1 : reader.docFreq(query.getTerm());
+
+                // Calculate TF-IDF for the query vector
+                float qTF = (float)(1 + Math.log10(queryweights.get(query)));   // Logarithmic term frequency
+                float qIDF = (float)(Math.log10(reader.numDocs()/DF));          // Logarithmic inverse document frequency
+                float qWeight = qTF * qIDF;                                     // Final calculation
+
+                // Store query weight for later calculations
                 queryweights.put(query, qWeight);
+
+                // Get the top 100 documents that match our query
                 TopDocs tpd = searcher.search(query, numDocs);
                 for(int i = 0; i < tpd.scoreDocs.length; i++)
-                {
-                    Document doc = searcher.doc(tpd.scoreDocs[i].doc);
-                    double score = tpd.scoreDocs[i].score * queryweights.get(query);
+                {   // For every returned document...
+                    Document doc = searcher.doc(tpd.scoreDocs[i].doc);                  // Get the document
+                    double score = tpd.scoreDocs[i].score * queryweights.get(query);    // Calculate TF-IDF for document
+
+                    // Store score for later use
                     scores.put(doc, (float)(scores.getOrDefault(doc, 0.0f)+score));
                 }
             }
+
+            // Normalization of scores
             for(Map.Entry<Document, Float> entry: scores.entrySet())
-            {
+            {   // For every document and its corresponding score...
                 Document doc = entry.getKey();
                 Float score = entry.getValue();
+
+                // Normalize the score
                 scores.put(doc, score/scores.size());
             }
+
+            // Map our Documents and scores to the corresponding query
             queryScores.put(q, scores);
         }
 
+
+        // Output for testing, should be removed eventually
         for(Map.Entry<Query, HashMap<Document, Float>> queryScore: queryScores.entrySet())
         {
             String query = queryScore.getKey().toString();
@@ -118,6 +145,7 @@ public class TFIDF_lnc_ltn {
                 System.out.println("Score\t" + f);
             }
         }
+        // Remove to here before submitting
     }
 
 }
