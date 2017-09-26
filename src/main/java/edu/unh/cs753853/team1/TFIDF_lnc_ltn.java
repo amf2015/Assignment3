@@ -84,8 +84,9 @@ public class TFIDF_lnc_ltn {
         for(Data.Page page:pageList)
         {   // For every page in .cbor.outline
             // We need...
-            HashMap<Document, Float> scores = new HashMap<>();          // Mapping of each Document to its score
+            HashMap<TermQuery, ArrayList<DocumentResults>> scores = new HashMap<>();          // Mapping of each Document to its score
             HashMap<Document, DocumentResults> docMap = new HashMap<>();
+            HashMap<Document, Float> lengths = new HashMap<>();
             PriorityQueue<DocumentResults> docQueue = new PriorityQueue<>(new ResultComparator());
             ArrayList<DocumentResults> docResults = new ArrayList<>();
             HashMap<TermQuery, Float> queryweights = new HashMap<>();   // Mapping of each term to its query tf
@@ -140,33 +141,53 @@ public class TFIDF_lnc_ltn {
                     docMap.put(doc, dResults);
 
                     // Store score for later use
-                    scores.put(doc, (float)(prevScore+score));
+                    if(scores.get(query) == null)
+                    {
+                        scores.put(query, new ArrayList<>());
+                    }
+                    scores.get(query).add(dResults);
                 }
             }
 
             // Get cosine Length
-            float cosineLength = 0.0f;
-            for(Map.Entry<Document, Float> entry: scores.entrySet())
+            for(Map.Entry<TermQuery, ArrayList<DocumentResults>> entry: scores.entrySet())
+            {
+                ArrayList<DocumentResults> docList = entry.getValue();
+
+                for(DocumentResults docRes: docList)
+                {
+                    Document doc = docRes.getDoc();
+                    Float score = docRes.getScore();
+                    Float prevScore = lengths.get(doc);
+                    if(prevScore == null)
+                    {
+                        lengths.put(doc, 0.0f);
+                        prevScore = lengths.get(doc);
+                    }
+                    lengths.put(doc, (float)(prevScore + Math.pow(score, 2)));
+                }
+
+            }
+            for(Map.Entry<Document, Float> entry: lengths.entrySet())
             {
                 Document doc = entry.getKey();
-                Float score = entry.getValue();
-
-                cosineLength = (float)(cosineLength + Math.pow(score, 2));
+                Float summation = entry.getValue();
+                lengths.put(doc, (float)(Math.sqrt(summation)));
             }
-            cosineLength = (float)(Math.sqrt(cosineLength));
 
             // Normalization of scores
-            for(Map.Entry<Document, Float> entry: scores.entrySet())
+            for(Map.Entry<TermQuery, ArrayList<DocumentResults>> entry: scores.entrySet())
             {   // For every document and its corresponding score...
-                Document doc = entry.getKey();
-                Float score = entry.getValue();
+                ArrayList<DocumentResults> docList = entry.getValue();
 
-                // Normalize the score
-                scores.put(doc, score/scores.size());
-                DocumentResults dResults = docMap.get(doc);
-                dResults.score(dResults.getScore()/cosineLength);
+                for(DocumentResults docRes: docList) {
+                    Document doc = docRes.getDoc();
+                    Float score = docRes.getScore();
+                    DocumentResults dResults = docMap.get(doc);
+                    dResults.score(dResults.getScore() / lengths.get(doc));
 
-                docQueue.add(dResults);
+                    docQueue.add(dResults);
+                }
             }
 
             int rankCount = 0;
