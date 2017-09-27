@@ -10,7 +10,6 @@ import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
@@ -30,26 +29,26 @@ import org.apache.lucene.search.similarities.SimilarityBase;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
 
-public class AncApc {
+public class TFIDF_anc_apc {
 
 	static final private String INDEX_DIRECTORY = "index";
 	static final private String query_str = "Infield fly rule";
 	static private QueryParser parser = null;
 	static private Integer docNum = 100;
 
-	public static void main(String[] args) throws IOException {
-		HashMap<String, Float> testMap = new HashMap<String, Float>();
-		// IndexReader ir = getInedexReader(INDEX_DIRECTORY);
-		testMap = getRankedDocuments(query_str);
-		System.out.println(testMap);
-
-		for (Entry<String, Float> entry : testMap.entrySet()) {
-			String key = entry.getKey();
-			Float value = entry.getValue();
-			System.out.println("Key = " + key);
-			System.out.println("Values = " + value);
-		}
-	}
+	// public static void main(String[] args) throws IOException {
+	// HashMap<String, Float> testMap = new HashMap<String, Float>();
+	// // IndexReader ir = getInedexReader(INDEX_DIRECTORY);
+	// testMap = getRankedDocuments(query_str);
+	// System.out.println(testMap);
+	//
+	// for (Entry<String, Float> entry : testMap.entrySet()) {
+	// String key = entry.getKey();
+	// Float value = entry.getValue();
+	// System.out.println("Key = " + key);
+	// System.out.println("Values = " + value);
+	// }
+	// }
 
 	public static IndexReader getInedexReader(String path) throws IOException {
 		return DirectoryReader.open(FSDirectory.open((new File(path).toPath())));
