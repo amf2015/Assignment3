@@ -225,6 +225,15 @@ public class QueryParagraphs {
 				q.rankParas(page, 100, "result-custom.run");
 			}
 
+			TFIDF_anc_apc tfidf_anc_apc = new TFIDF_anc_apc();
+			tfidf_anc_apc.retrieveAllAncApcResults(pagelist, OUTPUT_DIR + "/tfidf_anc_apc.run");
+
+			TFIDF_bnn_bnn tfidf_bnn_bnn = new TFIDF_bnn_bnn(pagelist, 100);
+			tfidf_bnn_bnn.doScoring();
+
+			TFIDF_lnc_ltn tfidf_lnc_ltn = new TFIDF_lnc_ltn(pagelist, 100);
+			tfidf_lnc_ltn.dumpScoresTo(OUTPUT_DIR + "/tfidf_lnc_ltn.run");
+
 		} catch (CborException | IOException | ParseException e) {
 			e.printStackTrace();
 		}

@@ -183,6 +183,7 @@ public class TFIDF_lnc_ltn {
         }
 
 
+        System.out.println("TFIDF_lnc_ltn writing results to: \t\t" + runfile);
         FileWriter runfileWriter = new FileWriter(new File(runfile));
         for(Map.Entry<Query, ArrayList<DocumentResults>> results: queryResults.entrySet())
         {
@@ -193,6 +194,7 @@ public class TFIDF_lnc_ltn {
                 runfileWriter.write(dr.getRunfileString());
             }
         }
+        runfileWriter.close();
 
 
     }

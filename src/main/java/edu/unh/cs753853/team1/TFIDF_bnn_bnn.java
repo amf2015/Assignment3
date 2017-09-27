@@ -19,18 +19,33 @@ import java.util.*;
 
 
 /*
- * 
+ * Class to hold docId with associated score. 
+ * Allows for easier sorting
  */
-class ResultComparator implements Comparator<DocumentResults>
-{
-    public int compare(DocumentResults d2, DocumentResults d1)
-    {
-        if(d1.getScore() < d2.getScore())
+class DocResult {
+	public int docId;
+	public int score;
+	
+	// constructor
+	public DocResult(int id, int s) {
+		docId = id;
+		score = s;
+	}
+}
+
+/*
+ * Comparator to allow PriorityQueue to sort DocResults
+ */
+class DocComparator implements Comparator<DocResult> {
+	
+	@Override
+	public int compare(DocResult d1, DocResult d2) {
+		if(d1.score < d2.score)
+            return 1;
+        if(d1.score > d2.score)
             return -1;
-        if(d1.getScore() == d2.getScore())
-            return 0;
-        return 1;
-    }
+        return 0;
+	}
 }
 
 
@@ -58,7 +73,7 @@ public class TFIDF_bnn_bnn {
 	static final private String INDEX_DIRECTORY = "index";
 	static final private String OUTPUT_DIR = "output";
 	
-	private String runFile = "/bnn_bnn_scores";
+	private String runFile = "/tfidf_bnn_bnn.run";
 	
 	/*
 	 * @param pageList
@@ -91,15 +106,11 @@ public class TFIDF_bnn_bnn {
 	public void doScoring() throws ParseException, IOException {
 		queryResults = new HashMap<>();
 		
+		HashMap<Query, HashMap<Integer, Integer> > results = new HashMap<>();
+		
 		// run through cbor.outlines for queries
 		for(Data.Page page: queryPages) {
-			
-			HashMap<Document, Float> docScores = new HashMap<>();
-			HashMap<Document, DocumentResults> docMap = new HashMap<>();
-			HashMap<TermQuery, Float> queryWeights = new HashMap<>(); 
-			ArrayList<DocumentResults> docResults = new ArrayList<>();
 			ArrayList<TermQuery> queryTerms = new ArrayList<>();  
-			PriorityQueue<DocumentResults> docQueue = new PriorityQueue<>(new ResultComparator());
 			
             Query qry = queryParser.parse(page.getPageName());      
             String qid = page.getPageId();
@@ -108,73 +119,67 @@ public class TFIDF_bnn_bnn {
 			for(String term: page.getPageName().split(" ")) {
 				TermQuery cur = new TermQuery(new Term("parabody", term));
 				queryTerms.add(cur);
-//				float termFreq = 1;
-//				queryWeights.put(cur, termFreq);
 			}
+ 			
+			
+			HashMap<Integer, Integer> docScores = new HashMap<>();
 			for(TermQuery term: queryTerms) {
-				IndexReader indexReader = indexSearcher.getIndexReader();
-				// rule of bnn
-				float df = 1;
-				
-				float qWeight = 1;
-//				float qWeight = df * (float)(queryWeights.get(term) == null ? 0 : 1); // always 1
-				
-//				queryWeights.put(term, qWeight); // always 1
-				
 				TopDocs topDocs = indexSearcher.search(term, numDocs);
 				for(int i = 0; i < topDocs.scoreDocs.length; i++) {
 					Document doc = indexSearcher.doc(topDocs.scoreDocs[i].doc);
-//					float docScore = (float)((topDocs.scoreDocs[i].score == -1) ? 0 : 1);
-					float docScore = 1.0f;
 					
-					DocumentResults res = docMap.get(doc);
-					if(res == null) {
-						res = new DocumentResults(doc);
-						res.queryId(qid);
-						res.paragraphId(doc.getField("paraid").stringValue());
-						res.teamName("team1");
-						res.methodName("tf.idf_bnn_bnn");
+					if( !docScores.containsKey(topDocs.scoreDocs[i].doc) ) {
+						docScores.put(topDocs.scoreDocs[i].doc, 1);
 					}
-//					
-					float prevScore = (res.getScore());
-					res.score((docScore + prevScore));
-					docMap.put(doc, res);
-					System.out.println("docScore: " + prevScore + " : " + docScore);
+					else {
+						int prev = docScores.get(topDocs.scoreDocs[i].doc);
+						docScores.put(topDocs.scoreDocs[i].doc, ++prev);
+					}
 					
-					docScores.put(doc, prevScore+docScore);
 				}
+				
+				
 			}
-			
-			for(Map.Entry<Document, Float> entry: docScores.entrySet()) {
-				Document doc = entry.getKey();
-				docQueue.add(docMap.get(doc));
-			}
-			int curRank = 0;
-			DocumentResults curRes;
-			while((curRes = docQueue.poll()) != null) {
-				curRes.rank(curRank++);
-				docResults.add(curRes);
-			}
-			queryResults.put(qry, docResults);
-			
+			results.put(qry, docScores);
 		}
-		writeResults();
+		writeResults(results);
 		
 	}
 	
 	/* 
 	 * 
 	 */
-	private void writeResults() throws IOException {
-		System.out.println("Writing...");
+	private void writeResults(HashMap<Query, HashMap<Integer, Integer> > map) throws IOException {
+		System.out.println("TFIDF_bnn_bnn writing results to: \t\t" + OUTPUT_DIR + "/tfidf_bnn_bnn.run");
 		FileWriter writer = new FileWriter(new File(OUTPUT_DIR + runFile));
-		for(Map.Entry<Query, ArrayList<DocumentResults>> results: queryResults.entrySet()) {
-			ArrayList<DocumentResults> cur = results.getValue();
-			for(int i = 0; i < cur.size(); i++) {
-				DocumentResults res = cur.get(i);
-				writer.write(res.getRunfileString());
+		
+		Set<Query> keys = map.keySet();
+		Iterator<Query> iter = keys.iterator();
+		while(iter.hasNext()) {
+			Query curQuery = iter.next();
+			HashMap<Integer, Integer> doc = map.get(curQuery); 
+			String q = curQuery.toString();
+			Set<Integer> tmp = doc.keySet();
+			Iterator<Integer> docIds = tmp.iterator(); 
+			
+			PriorityQueue<DocResult> queue = new PriorityQueue<>(new DocComparator());
+			while(docIds.hasNext()) {
+				int curDocId = docIds.next();
+				int score = doc.get(curDocId);
+				DocResult tmsRes = new DocResult(curDocId, score);
+				queue.add(tmsRes);
+			}
+			
+			int count = 0;
+			DocResult cur;
+			while((cur = queue.poll()) != null && count++ < 100) {
+//				String rank = Integer.toString(count);
+				String line = cur.docId + " Q0 " + indexSearcher.doc(cur.docId).getField("paraid").stringValue() + " " + count + " " + cur.score + " " + "team1-tfidf_bnn_bnn";
+
+				writer.write(line + '\n');
 			}
 		}
+		writer.close();
 		
 	}
 }

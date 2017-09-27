@@ -72,9 +72,7 @@ public class TFIDF_anc_apc {
 			// testList.add(queryList.get(1));
 			for (Data.Page p : queryList) {
 				String queryStr = p.getPageId();
-				System.out.println(queryStr);
 				HashMap<String, Double> result_map = getRankedDocuments(queryStr);
-				System.out.println(result_map);
 				int i = 0;
 				for (Entry<String, Double> entry : result_map.entrySet()) {
 
@@ -320,7 +318,7 @@ public class TFIDF_anc_apc {
 				bWriter.newLine();
 			}
 
-			System.out.println("Write all ranking result to run file: " + path);
+			System.out.println("TFIDF_anc_apc writing results to: \t\t" + path);
 		} catch (IOException e) {
 			e.printStackTrace();
 		} finally {
