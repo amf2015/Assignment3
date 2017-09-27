@@ -1,6 +1,8 @@
 package edu.unh.cs753853.team1;
 
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -30,36 +32,43 @@ import org.apache.lucene.search.similarities.SimilarityBase;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
 
+import edu.unh.cs.treccartool.Data;
+
 public class TFIDF_anc_apc {
 
 	static final private String INDEX_DIRECTORY = "index";
-	static final private String query_str = "Infield fly rule"; // For testing.
 	static private QueryParser parser = null;
 	static private Integer docNum = 100;
 
-	// public static void main(String[] args) throws IOException {
-	// HashMap<String, Float> testMap = new HashMap<String, Float>();
-	// // IndexReader ir = getInedexReader(INDEX_DIRECTORY);
-	// testMap = getRankedDocuments(query_str);
-	// System.out.println(testMap);
-	//
-	// for (Entry<String, Float> entry : testMap.entrySet()) {
-	// String key = entry.getKey();
-	// Float value = entry.getValue();
-	// System.out.println("Key = " + key);
-	// System.out.println("Values = " + value);
-	// }
-	// }
-
-	public static IndexReader getInedexReader(String path) throws IOException {
+	private static IndexReader getInedexReader(String path) throws IOException {
 		return DirectoryReader.open(FSDirectory.open((new File(path).toPath())));
 	}
 
-	public void retrieveAllAncApcResults(ArrayList<String> queryList) {
+	public static SimilarityBase getAncApcSimilarityBase() throws IOException {
+
+		SimilarityBase ancApcSim = new SimilarityBase() {
+
+			@Override
+			protected float score(BasicStats stats, float freq, float docLen) {
+				return freq;
+			}
+
+			@Override
+			public String toString() {
+				return null;
+			}
+		};
+
+		return ancApcSim;
+	}
+
+	// Main function anc.apc. Get results for all querys
+	public void retrieveAllAncApcResults(ArrayList<Data.Page> queryList, String path) {
 		String method = "AncApc";
 		ArrayList<String> runFileStrList = new ArrayList<String>();
 		if (queryList != null) {
-			for (String queryStr : queryList) {
+			for (Data.Page p : queryList) {
+				String queryStr = p.getPageId();
 				HashMap<String, Float> result_map = getRankedDocuments(queryStr);
 				int i = 0;
 				for (Entry<String, Float> entry : result_map.entrySet()) {
@@ -73,8 +82,105 @@ public class TFIDF_anc_apc {
 			}
 		}
 
-		// Call wirte run file function
+		// Write run file function
+		if (runFileStrList.size() > 0) {
+			writeStrListToRunFile(runFileStrList, path);
+		} else {
+			System.out.println("No result for run file.");
+		}
+	}
 
+	// Retrieve ranked result with score for one query string.
+	public static HashMap<String, Float> getRankedDocuments(String queryStr) {
+
+		HashMap<Term, Float> qTerm_norm = new HashMap<Term, Float>();
+		HashMap<String, Integer> doc_maxTF = new HashMap<String, Integer>();
+
+		HashMap<String, ArrayList<Float>> doc_wtList = new HashMap<String, ArrayList<Float>>();
+		HashMap<String, Float> doc_cos = new HashMap<String, Float>();
+
+		HashMap<String, Float> doc_score = new HashMap<String, Float>();
+
+		try {
+			IndexReader ir = getInedexReader(INDEX_DIRECTORY);
+			IndexSearcher se = new IndexSearcher(ir);
+			se.setSimilarity(getAncApcSimilarityBase());
+			parser = new QueryParser("parabody", new StandardAnalyzer());
+
+			doc_maxTF = getMapOfDocWithMaxTF(ir);
+			qTerm_norm = getNormMapForEachQueryTerm(ir, queryStr);
+			System.out.println(qTerm_norm);
+			// Get Cosine value.
+			for (Term qTerm : qTerm_norm.keySet()) {
+				Query q = parser.parse(qTerm.text());
+
+				TopDocs topDocs = se.search(q, docNum);
+
+				ScoreDoc[] hits = topDocs.scoreDocs;
+
+				for (int i = 0; i < hits.length; i++) {
+					Document doc = se.doc(hits[i].doc);
+					String docId = doc.get("paraid");
+
+					int tf = (int) hits[i].score;
+					int max_tf = doc_maxTF.get(docId);
+
+					float a = getAugmentedWt(tf, max_tf);
+
+					if (doc_wtList.containsKey(docId)) {
+						ArrayList<Float> wt_list = doc_wtList.get(docId);
+						wt_list.add(a);
+						doc_wtList.put(docId, wt_list);
+					} else {
+						ArrayList<Float> wt_list = new ArrayList<Float>();
+						wt_list.add(a);
+						doc_wtList.put(docId, wt_list);
+					}
+				}
+			}
+
+			for (String docId : doc_wtList.keySet()) {
+
+				doc_cos.put(docId, getCosine(doc_wtList.get(docId)));
+
+			}
+
+			// To ensure the accuracy, doing another search.
+
+			for (Term qTerm : qTerm_norm.keySet()) {
+				Query q = parser.parse(qTerm.text());
+
+				TopDocs topDocs = se.search(q, docNum);
+
+				ScoreDoc[] hits = topDocs.scoreDocs;
+
+				float q_norm = qTerm_norm.get(qTerm); // apc
+
+				for (int i = 0; i < hits.length; i++) {
+					Document doc = se.doc(hits[i].doc);
+					String docId = doc.get("paraid");
+
+					int tf = (int) hits[i].score;
+					int max_tf = doc_maxTF.get(docId);
+
+					float a = getAugmentedWt(tf, max_tf);
+					float c = doc_cos.get(docId);
+
+					if (doc_score.containsKey(docId)) {
+						float score = doc_score.get(docId) + a * c * q_norm;
+						doc_score.put(docId, score);
+					} else {
+						float score = a * c * q_norm;
+						doc_score.put(docId, score);
+					}
+				}
+			}
+
+		} catch (Throwable e) {
+			e.printStackTrace();
+		}
+
+		return sortByValue(doc_score);
 	}
 
 	// Go through every term in each document, and find the highest term freq
@@ -89,9 +195,8 @@ public class TFIDF_anc_apc {
 		for (int i = 0; i < ir.maxDoc(); i++) {
 			Document doc = ir.document(i);
 			String docId = doc.get("paraid");
-			// System.out.println(docId);
 
-			Terms terms = ir.getTermVector(i, "content");// ir.getTermVector(i,
+			Terms terms = ir.getTermVector(i, "content");
 			if (terms != null) {
 
 				TermsEnum itr = terms.iterator();
@@ -101,15 +206,10 @@ public class TFIDF_anc_apc {
 				ArrayList<Integer> tfList = new ArrayList<Integer>();
 				while ((term = itr.next()) != null) {
 					try {
-						String termText = term.utf8ToString();
 						postings = itr.postings(postings, PostingsEnum.FREQS);
-						int num = postings.nextDoc();
 						int freq = postings.freq();
 
 						tfList.add(freq);
-						// System.out.println("doc:" + docId + ", term: " +
-						// termText
-						// + ", termFreq = " + freq);
 
 					} catch (Exception e) {
 						e.printStackTrace();
@@ -178,132 +278,6 @@ public class TFIDF_anc_apc {
 		return term_norm;
 	}
 
-	// Retrieve ranked result with score for one query string.
-	public static HashMap<String, Float> getRankedDocuments(String queryStr) {
-
-		HashMap<Term, Float> qTerm_norm = new HashMap<Term, Float>();
-		HashMap<String, Integer> doc_maxTF = new HashMap<String, Integer>();
-
-		HashMap<String, ArrayList<Float>> doc_wtList = new HashMap<String, ArrayList<Float>>();
-		HashMap<String, Float> doc_cos = new HashMap<String, Float>();
-
-		HashMap<String, Float> doc_score = new HashMap<String, Float>();
-
-		try {
-			IndexReader ir = getInedexReader(INDEX_DIRECTORY);
-			IndexSearcher se = new IndexSearcher(ir);
-			se.setSimilarity(getAncApcSimilarityBase());
-			parser = new QueryParser("parabody", new StandardAnalyzer());
-
-			doc_maxTF = getMapOfDocWithMaxTF(ir);
-			qTerm_norm = getNormMapForEachQueryTerm(ir, queryStr);
-			System.out.println(qTerm_norm);
-			// Get Cosine value.
-			for (Term qTerm : qTerm_norm.keySet()) {
-				Query q = parser.parse(qTerm.text());
-
-				TopDocs topDocs = se.search(q, docNum);
-
-				ScoreDoc[] hits = topDocs.scoreDocs;
-				// System.out.println("got : " + hits.length);
-
-				for (int i = 0; i < hits.length; i++) {
-					Document doc = se.doc(hits[i].doc);
-					// System.out.println(
-					// (i + 1) + ". " + doc.get("paraid") + " (" + hits[i].score
-					// + ") " + doc.get("parabody"));
-					String docId = doc.get("paraid");
-
-					int tf = (int) hits[i].score;
-					int max_tf = doc_maxTF.get(docId);
-
-					float a = getAugmentedWt(tf, max_tf);
-
-					if (doc_wtList.containsKey(docId)) {
-						ArrayList<Float> wt_list = doc_wtList.get(docId);
-						wt_list.add(a);
-						doc_wtList.put(docId, wt_list);
-					} else {
-						ArrayList<Float> wt_list = new ArrayList<Float>();
-						wt_list.add(a);
-						doc_wtList.put(docId, wt_list);
-					}
-				}
-			}
-
-			for (String docId : doc_wtList.keySet()) {
-
-				doc_cos.put(docId, getCosine(doc_wtList.get(docId)));
-
-			}
-
-			// To ensure the accuracy, doing another search.
-
-			for (Term qTerm : qTerm_norm.keySet()) {
-				Query q = parser.parse(qTerm.text());
-
-				TopDocs topDocs = se.search(q, docNum);
-
-				ScoreDoc[] hits = topDocs.scoreDocs;
-
-				float q_norm = qTerm_norm.get(qTerm); // apc
-
-				for (int i = 0; i < hits.length; i++) {
-					Document doc = se.doc(hits[i].doc);
-					// System.out.println(
-					// (i + 1) + ". " + doc.get("paraid") + " (" + hits[i].score
-					// + ") " + doc.get("parabody"));
-					String docId = doc.get("paraid");
-
-					int tf = (int) hits[i].score;
-					int max_tf = doc_maxTF.get(docId);
-
-					float a = getAugmentedWt(tf, max_tf);
-					float c = doc_cos.get(docId);
-
-					if (doc_score.containsKey(docId)) {
-						float score = doc_score.get(docId) + a * c * q_norm;
-						doc_score.put(docId, score);
-					} else {
-						float score = a * c * q_norm;
-						doc_score.put(docId, score);
-					}
-				}
-			}
-
-		} catch (Throwable e) {
-			e.printStackTrace();
-		}
-
-		return sortByValue(doc_score);
-	}
-
-	public static SimilarityBase getAncApcSimilarityBase() throws IOException {
-
-		SimilarityBase ancApcSim = new SimilarityBase() {
-
-			@Override
-			protected float score(BasicStats stats, float freq, float docLen) {
-				return freq;
-			}
-
-			// protected void fillBasicStats(BasicStats stats,
-			// CollectionStatistics collectionStats,
-			// TermStatistics termStats) {
-			//
-			// }
-
-			@Override
-			public String toString() {
-				// TODO Auto-generated method stub
-				return null;
-			}
-
-		};
-
-		return ancApcSim;
-	}
-
 	// Augmented Wt
 	public static float getAugmentedWt(int tf, int max_tf) {
 
@@ -313,15 +287,12 @@ public class TFIDF_anc_apc {
 	// Get consine value fro weight list.
 	public static float getCosine(List<Float> wt_list) {
 		float c = 0;
-
 		float pow_sum = 0;
 
 		for (float f : wt_list) {
-
 			pow_sum = (float) (pow_sum + Math.pow(f, 2));
 
 		}
-
 		c = (float) (1.0 / Math.sqrt(pow_sum));
 
 		return c;
@@ -329,6 +300,36 @@ public class TFIDF_anc_apc {
 
 	public static void writeStrListToRunFile(ArrayList<String> strList, String path) {
 		// write to run file.
+
+		BufferedWriter bWriter = null;
+		FileWriter fWriter = null;
+
+		try {
+			fWriter = new FileWriter(path);
+			bWriter = new BufferedWriter(fWriter);
+
+			for (String line : strList) {
+
+				bWriter.write(line);
+				bWriter.newLine();
+			}
+
+			System.out.println("Write all ranking result to run file: " + path);
+		} catch (IOException e) {
+			e.printStackTrace();
+		} finally {
+			try {
+				if (bWriter != null) {
+					bWriter.close();
+				}
+				if (fWriter != null) {
+					fWriter.close();
+				}
+			} catch (IOException ee) {
+				ee.printStackTrace();
+			}
+		}
+
 	}
 
 	// Sort Descending HashMap<String, Float>Map by its value
