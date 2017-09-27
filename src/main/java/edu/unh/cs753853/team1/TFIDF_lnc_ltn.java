@@ -17,17 +17,7 @@ import org.apache.lucene.store.FSDirectory;
 import java.io.*;
 import java.util.*;
 
-class ResultComparator implements Comparator<DocumentResults>
-{
-    public int compare(DocumentResults d2, DocumentResults d1)
-    {
-        if(d1.getScore() < d2.getScore())
-            return -1;
-        if(d1.getScore() == d2.getScore())
-            return 0;
-        return 1;
-    }
-}
+
 
 public class TFIDF_lnc_ltn {
     // Lucene tools
@@ -84,12 +74,7 @@ public class TFIDF_lnc_ltn {
         for(Data.Page page:pageList)
         {   // For every page in .cbor.outline
             // We need...
-            HashMap<TermQuery, ArrayList<DocumentResults>> scores = new HashMap<>();          // Mapping of each Document to its score
-            HashMap<Document, DocumentResults> docMap = new HashMap<>();
-            HashMap<Document, Float> lengths = new HashMap<>();
-            PriorityQueue<DocumentResults> docQueue = new PriorityQueue<>(new ResultComparator());
-            ArrayList<DocumentResults> docResults = new ArrayList<>();
-            HashMap<TermQuery, Float> queryweights = new HashMap<>();   // Mapping of each term to its query tf
+            TermResults results = new TermResults(searcher.getIndexReader());          // Mapping of each Document to its score
             ArrayList<TermQuery> terms = new ArrayList<>();             // List of every term in the query
             Query q = parser.parse(page.getPageName());                 // The full query containing all terms
             String qid = page.getPageId();
@@ -101,36 +86,23 @@ public class TFIDF_lnc_ltn {
                 terms.add(tq);
 
                 // Add one to our term weighting every time it appears in the query
-                queryweights.put(tq, queryweights.getOrDefault(tq, 0.0f)+1.0f);
+                results.addTermQuery(tq);
             }
             for(TermQuery query: terms)
             {   // For every Term
-
-                // Get our Index Reader for helpful statistics
-                IndexReader reader = searcher.getIndexReader();
-
-                // If document frequency is zero, set DF to 1; else, set DF to document frequency
-                float DF = (reader.docFreq(query.getTerm()) == 0) ? 1 : reader.docFreq(query.getTerm());
-
-                // Calculate TF-IDF for the query vector
-                float qTF = (float)(1 + Math.log10(queryweights.get(query)));   // Logarithmic term frequency
-                float qIDF = (float)(Math.log10(reader.numDocs()/DF));          // Logarithmic inverse document frequency
-                float qWeight = qTF * qIDF;                                     // Final calculation
-
-                // Store query weight for later calculations
-                queryweights.put(query, qWeight);
 
                 // Get the top 100 documents that match our query
                 TopDocs tpd = searcher.search(query, numDocs);
                 for(int i = 0; i < tpd.scoreDocs.length; i++)
                 {   // For every returned document...
                     Document doc = searcher.doc(tpd.scoreDocs[i].doc);                  // Get the document
-                    double score = tpd.scoreDocs[i].score * queryweights.get(query);    // Calculate TF-IDF for document
+                    double score = tpd.scoreDocs[i].score * results.termWeight(query);    // Calculate TF-IDF for document
 
-                    DocumentResults dResults = docMap.get(doc);
+                    DocumentResults dResults = results.getByDocument(query, doc);
                     if(dResults == null)
                     {
-                        dResults = new DocumentResults(doc);
+                        results.put(query, new DocumentResults(doc));
+                        dResults = results.getByDocument(query, doc);
                     }
                     float prevScore = dResults.getScore();
                     dResults.score((float)(prevScore+score));
@@ -138,69 +110,18 @@ public class TFIDF_lnc_ltn {
                     dResults.paragraphId(doc.getField("paraid").stringValue());
                     dResults.teamName("team1");
                     dResults.methodName("tf.idf_lnc_ltn");
-                    docMap.put(doc, dResults);
 
                     // Store score for later use
-                    if(scores.get(query) == null)
-                    {
-                        scores.put(query, new ArrayList<>());
-                    }
-                    scores.get(query).add(dResults);
+                    results.put(query, dResults);
                 }
             }
 
-            // Get cosine Length
-            for(Map.Entry<TermQuery, ArrayList<DocumentResults>> entry: scores.entrySet())
-            {
-                ArrayList<DocumentResults> docList = entry.getValue();
-
-                for(DocumentResults docRes: docList)
-                {
-                    Document doc = docRes.getDoc();
-                    Float score = docRes.getScore();
-                    Float prevScore = lengths.get(doc);
-                    if(prevScore == null)
-                    {
-                        lengths.put(doc, 0.0f);
-                        prevScore = lengths.get(doc);
-                    }
-                    lengths.put(doc, (float)(prevScore + Math.pow(score, 2)));
-                }
-
-            }
-            for(Map.Entry<Document, Float> entry: lengths.entrySet())
-            {
-                Document doc = entry.getKey();
-                Float summation = entry.getValue();
-                lengths.put(doc, (float)(Math.sqrt(summation)));
-            }
-
-            // Normalization of scores
-            for(Map.Entry<TermQuery, ArrayList<DocumentResults>> entry: scores.entrySet())
-            {   // For every document and its corresponding score...
-                ArrayList<DocumentResults> docList = entry.getValue();
-
-                for(DocumentResults docRes: docList) {
-                    Document doc = docRes.getDoc();
-                    Float score = docRes.getScore();
-                    DocumentResults dResults = docMap.get(doc);
-                    dResults.score(dResults.getScore() / lengths.get(doc));
-
-                    docQueue.add(dResults);
-                }
-            }
-
-            int rankCount = 0;
-            DocumentResults current;
-            while((current = docQueue.poll()) != null)
-            {
-                current.rank(rankCount);
-                docResults.add(current);
-                rankCount++;
-            }
+            results.combineTermScores();
+            results.normalizeScores();
 
             // Map our Documents and scores to the corresponding query
-            queryResults.put(q, docResults);
+            results.rankResults();
+            queryResults.put(q, results.getCombinedScores());
         }
 
 
@@ -211,7 +132,8 @@ public class TFIDF_lnc_ltn {
             for(int i = 0; i < list.size(); i++)
             {
                 DocumentResults dr = list.get(i);
-                runfileWriter.write(dr.getRunfileString());
+                //runfileWriter.write(dr.getRunfileString());
+                //System.out.println(dr.getRunfileString());
             }
         }
 
