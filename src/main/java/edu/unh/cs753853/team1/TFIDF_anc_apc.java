@@ -32,7 +32,7 @@ import org.apache.lucene.util.BytesRef;
 public class TFIDF_anc_apc {
 
 	static final private String INDEX_DIRECTORY = "index";
-	static final private String query_str = "Infield fly rule";
+	static final private String query_str = "Infield fly rule"; // For testing.
 	static private QueryParser parser = null;
 	static private Integer docNum = 100;
 
@@ -102,7 +102,8 @@ public class TFIDF_anc_apc {
 		return result_map;
 	}
 
-	public static HashMap<Term, Float> getWtMapForEachQueryTerm(IndexReader ir, String queryStr) throws IOException {
+	// Get normalized weight for each query term. (apc)
+	public static HashMap<Term, Float> getNormMapForEachQueryTerm(IndexReader ir, String queryStr) throws IOException {
 
 		HashMap<Term, Integer> term_tf = new HashMap<Term, Integer>();
 
@@ -154,6 +155,7 @@ public class TFIDF_anc_apc {
 		return term_norm;
 	}
 
+	// Retrieve ranked result with score for one query string.
 	public static HashMap<String, Float> getRankedDocuments(String queryStr) {
 
 		HashMap<Term, Float> qTerm_norm = new HashMap<Term, Float>();
@@ -171,7 +173,7 @@ public class TFIDF_anc_apc {
 			parser = new QueryParser("parabody", new StandardAnalyzer());
 
 			doc_maxTF = getMapOfDocWithMaxTF(ir);
-			qTerm_norm = getWtMapForEachQueryTerm(ir, queryStr);
+			qTerm_norm = getNormMapForEachQueryTerm(ir, queryStr);
 			System.out.println(qTerm_norm);
 			// Get Cosine value.
 			for (Term qTerm : qTerm_norm.keySet()) {
@@ -279,11 +281,13 @@ public class TFIDF_anc_apc {
 		return ancApcSim;
 	}
 
+	// Augmented Wt
 	public static float getAugmentedWt(int tf, int max_tf) {
 
 		return (float) (0.5 + (0.5 * tf / max_tf));
 	}
 
+	// Get consine value fro weight list.
 	public static float getCosine(List<Float> wt_list) {
 		float c = 0;
 
@@ -300,6 +304,11 @@ public class TFIDF_anc_apc {
 		return c;
 	}
 
+	public static void writeToRunFile() {
+
+	}
+
+	// Sort Descending HashMap<String, Float>Map by its value
 	private static HashMap<String, Float> sortByValue(Map<String, Float> unsortMap) {
 
 		List<Map.Entry<String, Float>> list = new LinkedList<Map.Entry<String, Float>>(unsortMap.entrySet());
