@@ -63,17 +63,22 @@ public class TFIDF_anc_apc {
 	}
 
 	// Main function anc.apc. Get results for all querys
-	public void retrieveAllAncApcResults(ArrayList<Data.Page> queryList, String path) {
+	public static void retrieveAllAncApcResults(ArrayList<Data.Page> queryList, String path) {
 		String method = "AncApc";
 		ArrayList<String> runFileStrList = new ArrayList<String>();
 		if (queryList != null) {
+			// ArrayList<Data.Page> testList = new ArrayList<Data.Page>();
+			// testList.add(queryList.get(0));
+			// testList.add(queryList.get(1));
 			for (Data.Page p : queryList) {
 				String queryStr = p.getPageId();
-				HashMap<String, Float> result_map = getRankedDocuments(queryStr);
+				System.out.println(queryStr);
+				HashMap<String, Double> result_map = getRankedDocuments(queryStr);
+				System.out.println(result_map);
 				int i = 0;
-				for (Entry<String, Float> entry : result_map.entrySet()) {
+				for (Entry<String, Double> entry : result_map.entrySet()) {
 
-					String runFileString = queryList + " Q0 " + entry.getKey() + " " + i + " " + entry.getValue()
+					String runFileString = queryStr + " Q0 " + entry.getKey() + " " + i + " " + entry.getValue()
 							+ " team1-" + method;
 					runFileStrList.add(runFileString);
 					i++;
@@ -91,7 +96,7 @@ public class TFIDF_anc_apc {
 	}
 
 	// Retrieve ranked result with score for one query string.
-	public static HashMap<String, Float> getRankedDocuments(String queryStr) {
+	public static HashMap<String, Double> getRankedDocuments(String queryStr) {
 
 		HashMap<Term, Float> qTerm_norm = new HashMap<Term, Float>();
 		HashMap<String, Integer> doc_maxTF = new HashMap<String, Integer>();
@@ -99,7 +104,7 @@ public class TFIDF_anc_apc {
 		HashMap<String, ArrayList<Float>> doc_wtList = new HashMap<String, ArrayList<Float>>();
 		HashMap<String, Float> doc_cos = new HashMap<String, Float>();
 
-		HashMap<String, Float> doc_score = new HashMap<String, Float>();
+		HashMap<String, Double> doc_score = new HashMap<String, Double>();
 
 		try {
 			IndexReader ir = getInedexReader(INDEX_DIRECTORY);
@@ -109,7 +114,7 @@ public class TFIDF_anc_apc {
 
 			doc_maxTF = getMapOfDocWithMaxTF(ir);
 			qTerm_norm = getNormMapForEachQueryTerm(ir, queryStr);
-			System.out.println(qTerm_norm);
+			// System.out.println(qTerm_norm);
 			// Get Cosine value.
 			for (Term qTerm : qTerm_norm.keySet()) {
 				Query q = parser.parse(qTerm.text());
@@ -167,10 +172,10 @@ public class TFIDF_anc_apc {
 					float c = doc_cos.get(docId);
 
 					if (doc_score.containsKey(docId)) {
-						float score = doc_score.get(docId) + a * c * q_norm;
+						double score = doc_score.get(docId) + ((double) a * c) * q_norm;
 						doc_score.put(docId, score);
 					} else {
-						float score = a * c * q_norm;
+						double score = ((double) a * c) * q_norm;
 						doc_score.put(docId, score);
 					}
 				}
@@ -190,7 +195,7 @@ public class TFIDF_anc_apc {
 
 		HashMap<String, Integer> result_map = new HashMap<String, Integer>();
 
-		System.out.println(ir.maxDoc());
+		// System.out.println(ir.maxDoc());
 		// iterate through documents in index
 		for (int i = 0; i < ir.maxDoc(); i++) {
 			Document doc = ir.document(i);
@@ -207,6 +212,7 @@ public class TFIDF_anc_apc {
 				while ((term = itr.next()) != null) {
 					try {
 						postings = itr.postings(postings, PostingsEnum.FREQS);
+						postings.nextDoc();
 						int freq = postings.freq();
 
 						tfList.add(freq);
@@ -332,19 +338,19 @@ public class TFIDF_anc_apc {
 
 	}
 
-	// Sort Descending HashMap<String, Float>Map by its value
-	private static HashMap<String, Float> sortByValue(Map<String, Float> unsortMap) {
+	// Sort Descending HashMap<String, Double>Map by its value
+	private static HashMap<String, Double> sortByValue(Map<String, Double> unsortMap) {
 
-		List<Map.Entry<String, Float>> list = new LinkedList<Map.Entry<String, Float>>(unsortMap.entrySet());
+		List<Map.Entry<String, Double>> list = new LinkedList<Map.Entry<String, Double>>(unsortMap.entrySet());
 
-		Collections.sort(list, new Comparator<Map.Entry<String, Float>>() {
-			public int compare(Map.Entry<String, Float> o1, Map.Entry<String, Float> o2) {
+		Collections.sort(list, new Comparator<Map.Entry<String, Double>>() {
+			public int compare(Map.Entry<String, Double> o1, Map.Entry<String, Double> o2) {
 				return (o2.getValue()).compareTo(o1.getValue());
 			}
 		});
 
-		HashMap<String, Float> sortedMap = new LinkedHashMap<String, Float>();
-		for (Map.Entry<String, Float> entry : list) {
+		HashMap<String, Double> sortedMap = new LinkedHashMap<String, Double>();
+		for (Map.Entry<String, Double> entry : list) {
 			sortedMap.put(entry.getKey(), entry.getValue());
 		}
 
