@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
@@ -52,6 +53,28 @@ public class TFIDF_anc_apc {
 
 	public static IndexReader getInedexReader(String path) throws IOException {
 		return DirectoryReader.open(FSDirectory.open((new File(path).toPath())));
+	}
+
+	public void retrieveAllAncApcResults(ArrayList<String> queryList) {
+		String method = "AncApc";
+		ArrayList<String> runFileStrList = new ArrayList<String>();
+		if (queryList != null) {
+			for (String queryStr : queryList) {
+				HashMap<String, Float> result_map = getRankedDocuments(queryStr);
+				int i = 0;
+				for (Entry<String, Float> entry : result_map.entrySet()) {
+
+					String runFileString = queryList + " Q0 " + entry.getKey() + " " + i + " " + entry.getValue()
+							+ " team1-" + method;
+					runFileStrList.add(runFileString);
+					i++;
+				}
+
+			}
+		}
+
+		// Call wirte run file function
+
 	}
 
 	// Go through every term in each document, and find the highest term freq
@@ -304,8 +327,8 @@ public class TFIDF_anc_apc {
 		return c;
 	}
 
-	public static void writeToRunFile() {
-
+	public static void writeStrListToRunFile(ArrayList<String> strList, String path) {
+		// write to run file.
 	}
 
 	// Sort Descending HashMap<String, Float>Map by its value
