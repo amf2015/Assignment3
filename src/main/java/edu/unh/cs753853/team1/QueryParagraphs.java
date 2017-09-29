@@ -299,7 +299,7 @@ public class QueryParagraphs {
 
 			// SpearMan Coefficient Implementation
 
-			String lucenedefault = "output/result-custom.run";
+			String lucenedefault = "output//result-lucene.run";
 			HashMap<String, HashMap<String, String>> lucene_data = read_dataFile(lucenedefault);
 
 			String tfIdf_anc_apc = "output/tfidf_anc_apc.run";
